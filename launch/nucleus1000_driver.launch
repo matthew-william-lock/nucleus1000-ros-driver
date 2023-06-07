@@ -1,7 +1,21 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="ip" default = ""/>
-    <node pkg="nucleus1000_driver" type="nucleus_ros_driver.py" name="nucleus1000_driver" output="screen">
-        <param name="/dvl_ip" value="$(arg ip)"/>
-    </node>
+
+    <arg name="robot_name" default="sam"/>
+
+    <group ns="$(arg robot_name)">
+
+        <node pkg="nucleus1000_driver" type="nucleus_ros_driver.py" name="nucleus1000_driver" output="screen">
+
+            <!-- <param name="/dvl_ip" value="$(arg ip)"/>  -->
+            <param name="port" value="/dev/ttyUSB0"/>
+
+            <param name="dvl_topic" value="/$(arg robot_name)/core/dvl"/>
+            <param name="dvl_raw_topic" value="/$(arg robot_name)/core/dvl_raw_output"/>
+            <param name="dvl_frame" value="$(arg robot_name)/dvl_link"/>
+            <param name="dvl_on_off_srv" value="/$(arg robot_name)/core/toggle_dvl"/>
+        </node>
+
+    </group>
 </launch>

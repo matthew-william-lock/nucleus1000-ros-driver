@@ -10,6 +10,11 @@ from std_msgs.msg import Float32
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import PoseWithCovarianceStamped, TwistWithCovarianceStamped
 
+from std_msgs.msg import Bool 
+from std_srvs.srv import SetBool
+from std_srvs.srv import SetBoolResponse
+from std_srvs.srv import SetBoolRequest
+
 import socket
 import time
 
@@ -40,21 +45,31 @@ class NucleusRosDriver():
 
     def __init__(self):
 
-        self.imu_data_pub = rospy.Publisher("/dvl/imu_data", Imu, queue_size=10)
+        self.dvl_frame = rospy.get_param('~dvl_frame', 'sam/dvl_link')
+        self.dvl_topic = rospy.get_param('~dvl_topic', '/sam/core/dvl')
+        self.water_sound_vel = rospy.get_param('~water_sound_velocity', 1500.0)
+        self.dvl_port = rospy.get_param('~port', "/dev/ttyUSB0")
+        self.dvl_ctrl_srv = rospy.get_param('~dvl_on_off_srv', 'core/toggle_dvl')
+
+        # Service to start/stop DVL and DVL data publisher
+        self.switch_srv = rospy.Service(self.dvl_ctrl_srv, SetBool, self.dvl_switch_cb) 
+        self.dvl_en_pub = rospy.Publisher('dvl_enable', Bool, queue_size=10)
+
+        self.imu_data_pub = rospy.Publisher(self.dvl_topic + "/imu_data", Imu, queue_size=10)
         self.imu_pub_seq = 0
 
-        self.dvl_twist_pub = rospy.Publisher("/dvl/dvl_data", TwistWithCovarianceStamped, queue_size=10)
+        self.dvl_twist_pub = rospy.Publisher(self.dvl_topic + "/dvl_data", TwistWithCovarianceStamped, queue_size=10)
         self.dvl_pub_seq = 0
 
-        self.ahrs_pose_pub = rospy.Publisher("/dvl/ahrs_pose", PoseWithCovarianceStamped, queue_size=10)
+        self.ahrs_pose_pub = rospy.Publisher(self.dvl_topic + "/ahrs_pose", PoseWithCovarianceStamped, queue_size=10)
         self.ahrs_pub_seq = 0
 
-        self.altitude_pub = rospy.Publisher("/dvl/altitude", Float32, queue_size=10)
+        self.altitude_pub = rospy.Publisher(self.dvl_topic + "/altitude", Float32, queue_size=10)
 
         self.sensor_frame_id = "uns_link"
         self.map_frame_id = "odom"
 
-        self.hostname = rospy.get_param("/nucleus1000_driver/dvl_ip")
+        self.hostname = rospy.get_param("/nucleus1000_driver/dvl_ip", "")
         if self.hostname == "":
             self.hostname = "169.254.15.123"
         self.port = 9000
@@ -64,9 +79,12 @@ class NucleusRosDriver():
 
         self.nucleus_driver = NucleusDriver()
 
-        self.nucleus_driver.connection.set_tcp_configuration(host=self.hostname)
-        self.nucleus_driver.connection.set_tcp_configuration(port=int(self.port))
-        self.nucleus_driver.connection.connect(connection_type="tcp")
+        self.nucleus_driver.connection.set_serial_configuration(port=self.dvl_port, baudrate=115200)
+        self.nucleus_driver.connection.connect(connection_type="serial")
+
+        # self.nucleus_driver.connection.set_tcp_configuration(host=self.hostname)
+        # self.nucleus_driver.connection.set_tcp_configuration(port=int(self.port))
+        # self.nucleus_driver.connection.connect(connection_type="tcp")
         self.nucleus_driver.parser.set_queuing(packet=self.use_queues)
 
         if self.nucleus_driver.connection.get_connection_status() is not True:
@@ -77,7 +95,22 @@ class NucleusRosDriver():
 
         self.nucleus_driver.thread.start()
         #self.nucleus_driver.logging.start()
-        self.nucleus_driver.commands.start() # Send START to Nucleus1000
+        # self.nucleus_driver.commands.start() # Send START to Nucleus1000
+
+    def dvl_switch_cb(self, switch_msg):
+        res = SetBoolResponse()
+        if switch_msg.data:
+            self.nucleus_driver.commands.start()
+            res.success = True
+        else:
+            self.nucleus_driver.commands.stop()
+            res.success = True
+
+        if res.success == True:
+            self.dvl_on = switch_msg.data
+        
+        self.dvl_en_pub.publish(Bool(self.dvl_on))
+        return res
 
 
     def spin(self):
@@ -186,7 +219,7 @@ class NucleusRosDriver():
 
             dvl_msg.header.seq = self.dvl_pub_seq
             dvl_msg.header.stamp = rospy.Time.now()
-            dvl_msg.header.frame_id = self.sensor_frame_id
+            dvl_msg.header.frame_id = self.dvl_frame
 
             dvl_msg.twist.twist.linear.x = vel_x
             dvl_msg.twist.twist.linear.y = vel_y
