@@ -15,6 +15,9 @@ from std_srvs.srv import SetBool
 from std_srvs.srv import SetBoolResponse
 from std_srvs.srv import SetBoolRequest
 
+from smarc_msgs.msg import DVLBeam
+from smarc_msgs.msg import DVL
+
 import socket
 import time
 
@@ -58,7 +61,7 @@ class NucleusRosDriver():
         self.imu_data_pub = rospy.Publisher(self.dvl_topic + "/imu_data", Imu, queue_size=10)
         self.imu_pub_seq = 0
 
-        self.dvl_twist_pub = rospy.Publisher(self.dvl_topic + "/dvl_data", TwistWithCovarianceStamped, queue_size=10)
+        self.dvl_twist_pub = rospy.Publisher(self.dvl_topic, DVL, queue_size=10)
         self.dvl_pub_seq = 0
 
         self.ahrs_pose_pub = rospy.Publisher(self.dvl_topic + "/ahrs_pose", PoseWithCovarianceStamped, queue_size=10)
@@ -215,22 +218,30 @@ class NucleusRosDriver():
             
             #pressure = package['pressure']
 
-            dvl_msg = TwistWithCovarianceStamped()
+            dvl_msg = DVL()
 
             dvl_msg.header.seq = self.dvl_pub_seq
             dvl_msg.header.stamp = rospy.Time.now()
             dvl_msg.header.frame_id = self.dvl_frame
+            
+            dvl_msg.velocity.x = vel_x
+            dvl_msg.velocity.y = vel_y
+            dvl_msg.velocity.z = vel_z
 
-            dvl_msg.twist.twist.linear.x = vel_x
-            dvl_msg.twist.twist.linear.y = vel_y
-            dvl_msg.twist.twist.linear.z = vel_z
+            # dvl_msg.twist.twist.linear.x = vel_x
+            # dvl_msg.twist.twist.linear.y = vel_y
+            # dvl_msg.twist.twist.linear.z = vel_z
 
-            dvl_msg.twist.covariance = [var_x,  0,    0,   0, 0, 0,
-                                          0,  var_y,  0,   0, 0, 0,
-                                          0,    0,  var_z, 0, 0, 0,
-                                          0,    0,    0,   0, 0, 0,
-                                          0,    0,    0,   0, 0, 0,
-                                          0,    0,    0,   0, 0, 0]
+            # dvl_msg.twist.covariance = [var_x,  0,    0,   0, 0, 0,
+            #                               0,  var_y,  0,   0, 0, 0,
+            #                               0,    0,  var_z, 0, 0, 0,
+            #                               0,    0,    0,   0, 0, 0,
+            #                               0,    0,    0,   0, 0, 0,
+            #                               0,    0,    0,   0, 0, 0]
+            
+            dvl_msg.velocity_covariance[0] = var_x
+            dvl_msg.velocity_covariance[4] = var_y
+            dvl_msg.velocity_covariance[8] = var_z
 
             self.dvl_twist_pub.publish(dvl_msg)
             self.dvl_pub_seq += 1
