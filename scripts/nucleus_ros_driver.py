@@ -78,6 +78,8 @@ class NucleusRosDriver():
         self.port = 9000
         self.use_queues = True
 
+        self.distance = Float32(1.)
+
         rospy.loginfo(f"Nucleus configured as: {self.hostname}:{self.port}")
 
         self.nucleus_driver = NucleusDriver()
@@ -243,6 +245,8 @@ class NucleusRosDriver():
             dvl_msg.velocity_covariance[4] = var_y
             dvl_msg.velocity_covariance[8] = var_z
 
+            dvl_msg.altitude = self.distance.data
+
             self.dvl_twist_pub.publish(dvl_msg)
             self.dvl_pub_seq += 1
 
@@ -295,10 +299,10 @@ class NucleusRosDriver():
 
             quality = packet['altimeter_quality']
 
-            distance = Float32()
-            distance.data = packet['altimeter_distance']
+            self.distance = Float32()
+            self.distance.data = packet['altimeter_distance']
 
-            self.altitude_pub.publish(distance)
+            self.altitude_pub.publish(self.distance)
 
 
 if __name__ == "__main__":
